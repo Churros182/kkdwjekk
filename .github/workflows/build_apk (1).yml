@@ -1,0 +1,799 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Crear archivos del proyecto
+      run: |
+          mkdir -p "$(dirname settings.gradle.kts)"
+          cat > settings.gradle.kts <<'MAZDA_EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+
+          rootProject.name = "MazdaVBFFlasher"
+          include(":app")
+          MAZDA_EOF
+          mkdir -p "$(dirname build.gradle.kts)"
+          cat > build.gradle.kts <<'MAZDA_EOF'
+          plugins {
+              id("com.android.application") version "8.2.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.22" apply false
+          }
+          MAZDA_EOF
+          mkdir -p "$(dirname gradle.properties)"
+          cat > gradle.properties <<'MAZDA_EOF'
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          kotlin.code.style=official
+          android.nonTransitiveRClass=true
+          MAZDA_EOF
+          mkdir -p "$(dirname app/build.gradle.kts)"
+          cat > app/build.gradle.kts <<'MAZDA_EOF'
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+          }
+
+          android {
+              namespace = "com.mikarro.mazdavbfflasher"
+              compileSdk = 34
+
+              defaultConfig {
+                  applicationId = "com.mikarro.mazdavbfflasher"
+                  minSdk = 24
+                  targetSdk = 34
+                  versionCode = 1
+                  versionName = "1.0"
+              }
+
+              buildTypes {
+                  release {
+                      isMinifyEnabled = false
+                      proguardFiles(
+                          getDefaultProguardFile("proguard-android-optimize.txt"),
+                          "proguard-rules.pro"
+                      )
+                  }
+              }
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+          }
+
+          dependencies {
+              implementation("androidx.core:core-ktx:1.12.0")
+              implementation("androidx.appcompat:appcompat:1.6.1")
+              implementation("com.google.android.material:material:1.11.0")
+              implementation("androidx.constraintlayout:constraintlayout:2.1.4")
+              implementation("com.squareup.okhttp3:okhttp:4.12.0")
+              implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+          }
+          MAZDA_EOF
+          mkdir -p "$(dirname app/proguard-rules.pro)"
+          cat > app/proguard-rules.pro <<'MAZDA_EOF'
+          # Add project specific ProGuard rules here.
+          MAZDA_EOF
+          mkdir -p "$(dirname app/src/main/AndroidManifest.xml)"
+          cat > app/src/main/AndroidManifest.xml <<'MAZDA_EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+              <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+              <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+              <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+              <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+              <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+              <application
+                  android:allowBackup="true"
+                  android:label="Mazda VBF Flasher"
+                  android:supportsRtl="true"
+                  android:theme="@style/Theme.AppCompat.NoActionBar">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+
+          </manifest>
+          MAZDA_EOF
+          mkdir -p "$(dirname app/src/main/res/layout/activity_main.xml)"
+          cat > app/src/main/res/layout/activity_main.xml <<'MAZDA_EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:orientation="vertical"
+              android:background="#121212"
+              android:padding="16dp">
+
+              <TextView
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:text="Mazda VBF Flasher &amp; SharePoint"
+                  android:textColor="#00FFCC"
+                  android:textSize="18sp"
+                  android:textStyle="bold"
+                  android:gravity="center"
+                  android:paddingBottom="8dp"/>
+
+              <TextView
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:text="1. Enlace directo SharePoint (.vbf)"
+                  android:textColor="#FFFFFF"
+                  android:textSize="12sp"/>
+
+              <EditText
+                  android:id="@+id/etShareLink"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:hint="Pega el enlace de descarga aquí..."
+                  android:textColor="#FFFFFF"
+                  android:textColorHint="#777777"
+                  android:textSize="12sp"
+                  android:backgroundTint="#007ACC"/>
+
+              <EditText
+                  android:id="@+id/etFileName"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:hint="Nombre del archivo (ej. PE01-18881-A.vbf)"
+                  android:textColor="#FFFFFF"
+                  android:textColorHint="#777777"
+                  android:textSize="12sp"
+                  android:backgroundTint="#007ACC"/>
+
+              <Button
+                  android:id="@+id/btnDownload"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:text="Descargar VBF a Memoria Interna"
+                  android:backgroundTint="#007ACC"
+                  android:textColor="#FFFFFF"/>
+
+              <TextView
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:text="2. Calibraciones en el Celular (Offline)"
+                  android:textColor="#FFFFFF"
+                  android:textSize="12sp"
+                  android:paddingTop="8dp"/>
+
+              <ListView
+                  android:id="@+id/lvLocalFiles"
+                  android:layout_width="match_parent"
+                  android:layout_height="120dp"
+                  android:background="#1E1E1E"
+                  android:divider="#333333"
+                  android:dividerHeight="1dp"/>
+
+              <TextView
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:text="3. VIN del vehículo e información"
+                  android:textColor="#FFFFFF"
+                  android:textSize="12sp"
+                  android:paddingTop="8dp"/>
+
+              <EditText
+                  android:id="@+id/etVin"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:hint="VIN (17 caracteres)"
+                  android:inputType="textCapCharacters|textNoSuggestions"
+                  android:maxLength="17"
+                  android:textColor="#FFFFFF"
+                  android:textColorHint="#777777"
+                  android:textSize="14sp"
+                  android:backgroundTint="#007ACC"/>
+
+              <LinearLayout
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:orientation="horizontal">
+
+                  <Button
+                      android:id="@+id/btnBuscarVin"
+                      android:layout_width="0dp"
+                      android:layout_height="wrap_content"
+                      android:layout_weight="1"
+                      android:layout_marginEnd="4dp"
+                      android:text="Buscar VIN"
+                      android:backgroundTint="#007ACC"
+                      android:textColor="#FFFFFF"/>
+
+                  <Button
+                      android:id="@+id/btnInfoArchivo"
+                      android:layout_width="0dp"
+                      android:layout_height="wrap_content"
+                      android:layout_weight="1"
+                      android:layout_marginStart="4dp"
+                      android:text="Info del archivo"
+                      android:backgroundTint="#007ACC"
+                      android:textColor="#FFFFFF"/>
+              </LinearLayout>
+
+              <LinearLayout
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:orientation="horizontal"
+                  android:paddingTop="8dp">
+
+                  <Button
+                      android:id="@+id/btnConnectOBD"
+                      android:layout_width="0dp"
+                      android:layout_height="wrap_content"
+                      android:layout_weight="1"
+                      android:layout_marginEnd="4dp"
+                      android:text="Vincular OBD"
+                      android:backgroundTint="#FF8C00"
+                      android:textColor="#000000"/>
+
+                  <Button
+                      android:id="@+id/btnFlashUDS"
+                      android:layout_width="0dp"
+                      android:layout_height="wrap_content"
+                      android:layout_weight="1"
+                      android:layout_marginStart="4dp"
+                      android:text="Flashear UDS"
+                      android:backgroundTint="#D9534F"
+                      android:textColor="#FFFFFF"
+                      android:enabled="false"/>
+              </LinearLayout>
+
+              <TextView
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:text="Consola de Taller:"
+                  android:textColor="#FFFFFF"
+                  android:textSize="12sp"
+                  android:paddingTop="8dp"/>
+
+              <ScrollView
+                  android:layout_width="match_parent"
+                  android:layout_height="0dp"
+                  android:layout_weight="1"
+                  android:background="#000000"
+                  android:padding="8dp">
+                  <TextView
+                      android:id="@+id/tvConsole"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:text="[Sistema] App lista.
+          "
+                      android:textColor="#00FF00"
+                      android:fontFamily="monospace"
+                      android:textIsSelectable="true"
+                      android:textSize="11sp"/>
+              </ScrollView>
+
+          </LinearLayout>
+          MAZDA_EOF
+          mkdir -p "$(dirname app/src/main/java/com/mikarro/mazdavbfflasher/MainActivity.kt)"
+          cat > app/src/main/java/com/mikarro/mazdavbfflasher/MainActivity.kt <<'MAZDA_EOF'
+          package com.mikarro.mazdavbfflasher
+
+          import android.os.Bundle
+          import android.widget.*
+          import androidx.appcompat.app.AppCompatActivity
+          import kotlinx.coroutines.CoroutineScope
+          import kotlinx.coroutines.Dispatchers
+          import kotlinx.coroutines.launch
+          import kotlinx.coroutines.withContext
+          import java.io.File
+
+          class MainActivity : AppCompatActivity() {
+
+              private lateinit var downloader: OneDriveDownloader
+              private lateinit var etShareLink: EditText
+              private lateinit var etFileName: EditText
+              private lateinit var etVin: EditText
+              private lateinit var btnDownload: Button
+              private lateinit var btnBuscarVin: Button
+              private lateinit var btnInfoArchivo: Button
+              private lateinit var lvLocalFiles: ListView
+              private lateinit var btnConnectOBD: Button
+              private lateinit var btnFlashUDS: Button
+              private lateinit var tvConsole: TextView
+
+              private var archivoSeleccionado: File? = null
+              private var adaptadorConectado = false
+              private var ultimoVehiculo: String? = null
+
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  setContentView(R.layout.activity_main)
+
+                  downloader = OneDriveDownloader(this)
+
+                  etShareLink = findViewById(R.id.etShareLink)
+                  etFileName = findViewById(R.id.etFileName)
+                  etVin = findViewById(R.id.etVin)
+                  btnDownload = findViewById(R.id.btnDownload)
+                  btnBuscarVin = findViewById(R.id.btnBuscarVin)
+                  btnInfoArchivo = findViewById(R.id.btnInfoArchivo)
+                  lvLocalFiles = findViewById(R.id.lvLocalFiles)
+                  btnConnectOBD = findViewById(R.id.btnConnectOBD)
+                  btnFlashUDS = findViewById(R.id.btnFlashUDS)
+                  tvConsole = findViewById(R.id.tvConsole)
+
+                  etShareLink.setText("https://mazdasa-my.sharepoint.com/:f:/g/personal/technical_onemazda_co_za/ElsPqMflhxJBgchQVUSHJ8QBsml0jPxPxyR_GKu-xWARPQ?e=gwAVtU")
+
+                  actualizarListaLocal()
+
+                  btnDownload.setOnClickListener {
+                      val url = etShareLink.text.toString().trim()
+                      var nombre = etFileName.text.toString().trim()
+                      if (url.isEmpty()) {
+                          logConsole("⚠️ Introduce un enlace válido.")
+                          return@setOnClickListener
+                      }
+                      if (nombre.isEmpty()) {
+                          nombre = "calibracion_${System.currentTimeMillis()}.vbf"
+                      } else if (!nombre.endsWith(".vbf", ignoreCase = true)) {
+                          nombre += ".vbf"
+                      }
+
+                      logConsole("🔄 Descargando $nombre desde SharePoint...")
+                      CoroutineScope(Dispatchers.IO).launch {
+                          val archivoDescargado = downloader.descargarVbf(url, nombre)
+
+                          withContext(Dispatchers.Main) {
+                              if (archivoDescargado != null && archivoDescargado.length() > 0) {
+                                  logConsole("✅ Guardado (${archivoDescargado.length()} bytes): ${archivoDescargado.name}")
+                                  actualizarListaLocal()
+                              } else {
+                                  logConsole("❌ Error al descargar el archivo o respuesta vacía.")
+                              }
+                          }
+                      }
+                  }
+
+                  btnBuscarVin.setOnClickListener {
+                      val vin = etVin.text.toString().trim().uppercase()
+                      val error = VinDecoder.validar(vin)
+                      if (error != null) {
+                          logConsole("⚠️ $error")
+                          return@setOnClickListener
+                      }
+                      logConsole("🔎 VIN $vin")
+                      VinDecoder.infoLocal(vin).forEach { logConsole(it) }
+                      if (!VinDecoder.digitoControlOk(vin)) {
+                          logConsole("   ℹ️ El dígito de control no coincide (es normal en VIN fuera de Norteamérica).")
+                      }
+                      logConsole("   Consultando base de datos NHTSA...")
+                      CoroutineScope(Dispatchers.IO).launch {
+                          val datos = try {
+                              VinDecoder.decodificar(vin)
+                          } catch (e: Exception) {
+                              null
+                          }
+                          withContext(Dispatchers.Main) {
+                              if (datos == null) {
+                                  logConsole("❌ No se pudo consultar (¿sin internet?). Solo se muestran datos locales.")
+                              } else {
+                                  val lineas = VinDecoder.formatear(datos)
+                                  if (lineas.isEmpty()) {
+                                      logConsole("   Sin datos para este VIN en NHTSA.")
+                                  } else {
+                                      lineas.forEach { logConsole(it) }
+                                      ultimoVehiculo = VinDecoder.resumen(datos)
+                                  }
+                              }
+                          }
+                      }
+                  }
+
+                  btnInfoArchivo.setOnClickListener {
+                      val archivo = archivoSeleccionado
+                      if (archivo == null) {
+                          logConsole("⚠️ Primero toca un archivo de la lista.")
+                          return@setOnClickListener
+                      }
+                      CoroutineScope(Dispatchers.IO).launch {
+                          val lineas = try {
+                              VbfParser.leer(archivo)
+                          } catch (e: Exception) {
+                              listOf("❌ No se pudo leer el archivo: ${e.message}")
+                          }
+                          withContext(Dispatchers.Main) {
+                              lineas.forEach { logConsole(it) }
+                              val vehiculo = ultimoVehiculo
+                              if (vehiculo != null) {
+                                  logConsole("   🚗 Vehículo (último VIN consultado): $vehiculo")
+                              }
+                          }
+                      }
+                  }
+
+                  lvLocalFiles.setOnItemClickListener { _, _, position, _ ->
+                      val archivos = downloader.listarCalibracionesLocales()
+                      if (position in archivos.indices) {
+                          archivoSeleccionado = archivos[position]
+                          logConsole("📂 Seleccionado: ${archivoSeleccionado?.name}")
+                          validarHabilitarFlasheo()
+                      }
+                  }
+
+                  btnConnectOBD.setOnClickListener {
+                      logConsole("🔍 Buscando adaptador OBD2 Bluetooth (ELM327 / OBDLink)...")
+                      adaptadorConectado = true
+                      btnConnectOBD.text = "OBD Conectado"
+                      logConsole("✅ Enlace Bluetooth listo (Fase de sockets pendiente).")
+                      validarHabilitarFlasheo()
+                  }
+
+                  btnFlashUDS.setOnClickListener {
+                      if (archivoSeleccionado == null) return@setOnClickListener
+
+                      logConsole("🚀 Iniciando secuencia UDS para: ${archivoSeleccionado?.name}")
+                      logConsole("[1/4] Programming Session (10 02)...")
+                      logConsole("[2/4] Security Access (27)...")
+                      logConsole("[3/4] Transfer Data (34/36)...")
+                      logConsole("✅ Secuencia de prueba completada.")
+                      Toast.makeText(this, "Secuencia ejecutada", Toast.LENGTH_SHORT).show()
+                  }
+              }
+
+              private fun actualizarListaLocal() {
+                  val listaArchivos = downloader.listarCalibracionesLocales()
+                  val nombres = listaArchivos.map { "${it.name} (${it.length() / 1024} KB)" }
+                  val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, nombres)
+                  lvLocalFiles.adapter = adapter
+              }
+
+              private fun validarHabilitarFlasheo() {
+                  if (archivoSeleccionado != null && adaptadorConectado) {
+                      btnFlashUDS.isEnabled = true
+                      logConsole("🟢 Listo para flasheo UDS.")
+                  }
+              }
+
+              private fun logConsole(mensaje: String) {
+                  tvConsole.append("$mensaje\n")
+              }
+          }
+          MAZDA_EOF
+          mkdir -p "$(dirname app/src/main/java/com/mikarro/mazdavbfflasher/OneDriveDownloader.kt)"
+          cat > app/src/main/java/com/mikarro/mazdavbfflasher/OneDriveDownloader.kt <<'MAZDA_EOF'
+          package com.mikarro.mazdavbfflasher
+
+          import android.content.Context
+          import kotlinx.coroutines.Dispatchers
+          import kotlinx.coroutines.withContext
+          import okhttp3.OkHttpClient
+          import okhttp3.Request
+          import java.io.File
+          import java.io.FileOutputStream
+
+          class OneDriveDownloader(private val context: Context) {
+
+              private val client = OkHttpClient.Builder()
+                  .followRedirects(true)
+                  .followSslRedirects(true)
+                  .build()
+
+              suspend fun descargarVbf(fileUrl: String, nombreArchivo: String): File? = withContext(Dispatchers.IO) {
+                  try {
+                      val urlFinal = if (!fileUrl.contains("download=1")) {
+                          if (fileUrl.contains("?")) "$fileUrl&download=1" else "$fileUrl?download=1"
+                      } else {
+                          fileUrl
+                      }
+
+                      val request = Request.Builder()
+                          .url(urlFinal)
+                          .addHeader("User-Agent", "Mozilla/5.0 (Android; Mobile)")
+                          .build()
+
+                      val response = client.newCall(request).execute()
+                      if (!response.isSuccessful) return@withContext null
+
+                      val carpetaDestino = File(context.filesDir, "CalibrationFiles")
+                      if (!carpetaDestino.exists()) {
+                          carpetaDestino.mkdirs()
+                      }
+
+                      val archivoLocal = File(carpetaDestino, nombreArchivo)
+                      
+                      response.body?.byteStream()?.use { input ->
+                          FileOutputStream(archivoLocal).use { output ->
+                              input.copyTo(output)
+                          }
+                      }
+                      
+                      return@withContext archivoLocal
+                  } catch (e: Exception) {
+                      e.printStackTrace()
+                      return@withContext null
+                  }
+              }
+
+              fun listarCalibracionesLocales(): List<File> {
+                  val carpetaDestino = File(context.filesDir, "CalibrationFiles")
+                  if (!carpetaDestino.exists()) return emptyList()
+                  
+                  return carpetaDestino.listFiles { _, name -> name.endsWith(".vbf", ignoreCase = true) }?.toList() ?: emptyList()
+              }
+          }
+          MAZDA_EOF
+          mkdir -p "$(dirname app/src/main/java/com/mikarro/mazdavbfflasher/VinDecoder.kt)"
+          cat > app/src/main/java/com/mikarro/mazdavbfflasher/VinDecoder.kt <<'MAZDA_EOF'
+          package com.mikarro.mazdavbfflasher
+
+          import kotlinx.coroutines.Dispatchers
+          import kotlinx.coroutines.withContext
+          import okhttp3.OkHttpClient
+          import okhttp3.Request
+          import org.json.JSONObject
+
+          object VinDecoder {
+
+              private val client = OkHttpClient()
+
+              private val etiquetas = listOf(
+                  "Make" to "Marca",
+                  "Model" to "Modelo",
+                  "Model Year" to "Año",
+                  "Trim" to "Versión",
+                  "Body Class" to "Carrocería",
+                  "Engine Model" to "Motor",
+                  "Displacement (L)" to "Cilindrada (L)",
+                  "Engine Number of Cylinders" to "Cilindros",
+                  "Fuel Type - Primary" to "Combustible",
+                  "Transmission Style" to "Transmisión",
+                  "Drive Type" to "Tracción",
+                  "Plant Country" to "País de planta",
+                  "Plant City" to "Ciudad de planta"
+              )
+
+              fun validar(vin: String): String? {
+                  if (vin.length != 17) return "El VIN debe tener 17 caracteres (tiene ${vin.length})."
+                  val caracteresValidos = vin.all { it in 'A'..'Z' || it in '0'..'9' }
+                  if (!caracteresValidos || vin.any { it == 'I' || it == 'O' || it == 'Q' }) {
+                      return "VIN inválido: no puede tener I, O, Q ni símbolos."
+                  }
+                  return null
+              }
+
+              private fun valor(c: Char): Int = when (c) {
+                  in '0'..'9' -> c - '0'
+                  'A', 'J' -> 1
+                  'B', 'K', 'S' -> 2
+                  'C', 'L', 'T' -> 3
+                  'D', 'M', 'U' -> 4
+                  'E', 'N', 'V' -> 5
+                  'F', 'W' -> 6
+                  'G', 'P', 'X' -> 7
+                  'H', 'Y' -> 8
+                  'R', 'Z' -> 9
+                  else -> 0
+              }
+
+              fun digitoControlOk(vin: String): Boolean {
+                  val pesos = intArrayOf(8, 7, 6, 5, 4, 3, 2, 10, 0, 9, 8, 7, 6, 5, 4, 3, 2)
+                  var suma = 0
+                  for (i in 0 until 17) {
+                      suma += valor(vin[i]) * pesos[i]
+                  }
+                  val resto = suma % 11
+                  val esperado = if (resto == 10) 'X' else ('0' + resto)
+                  return vin[8] == esperado
+              }
+
+              fun infoLocal(vin: String): List<String> {
+                  val lineas = ArrayList<String>()
+                  val wmi = vin.substring(0, 3)
+                  val fabricante = when (wmi) {
+                      "JM1", "JM3", "JM7", "JMZ" -> "Mazda (Japón)"
+                      "3MZ", "3MD" -> "Mazda (México)"
+                      "1YV" -> "Mazda (EE.UU., Flat Rock)"
+                      "4F2", "4F4" -> "Mazda (EE.UU., vía Ford)"
+                      else -> "no identificado localmente ($wmi)"
+                  }
+                  lineas.add("   Fabricante (WMI): $fabricante")
+                  val codigoAnio = "ABCDEFGHJKLMNPRSTVWXY123456789".indexOf(vin[9])
+                  if (codigoAnio >= 0) {
+                      val anio = if (vin[6].isLetter()) 2010 + codigoAnio else 1980 + codigoAnio
+                      lineas.add("   Año modelo (aprox.): $anio")
+                  }
+                  return lineas
+              }
+
+              suspend fun decodificar(vin: String): Map<String, String> = withContext(Dispatchers.IO) {
+                  val request = Request.Builder()
+                      .url("https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVin/$vin?format=json")
+                      .build()
+                  val cuerpo = client.newCall(request).execute().use { resp ->
+                      if (!resp.isSuccessful) throw Exception("HTTP ${resp.code}")
+                      resp.body?.string() ?: throw Exception("Respuesta vacía")
+                  }
+                  val resultados = JSONObject(cuerpo).getJSONArray("Results")
+                  val datos = LinkedHashMap<String, String>()
+                  for (i in 0 until resultados.length()) {
+                      val o = resultados.getJSONObject(i)
+                      val v = o.optString("Value", "").trim()
+                      if (v.isNotEmpty() && v != "null") {
+                          datos[o.getString("Variable")] = v
+                      }
+                  }
+                  datos
+              }
+
+              fun formatear(datos: Map<String, String>): List<String> {
+                  val lineas = ArrayList<String>()
+                  for ((clave, etiqueta) in etiquetas) {
+                      val v = datos[clave]
+                      if (v != null) lineas.add("   $etiqueta: $v")
+                  }
+                  return lineas
+              }
+
+              fun resumen(datos: Map<String, String>): String? {
+                  val partes = listOfNotNull(datos["Make"], datos["Model"], datos["Model Year"])
+                  return if (partes.isEmpty()) null else partes.joinToString(" ")
+              }
+          }
+          MAZDA_EOF
+          mkdir -p "$(dirname app/src/main/java/com/mikarro/mazdavbfflasher/VbfParser.kt)"
+          cat > app/src/main/java/com/mikarro/mazdavbfflasher/VbfParser.kt <<'MAZDA_EOF'
+          package com.mikarro.mazdavbfflasher
+
+          import java.io.File
+
+          object VbfParser {
+
+              private fun moduloPorDireccion(valor: String): String {
+                  val limpio = valor.trim().lowercase().removePrefix("0x")
+                  val dir = limpio.toIntOrNull(16) ?: return valor
+                  val nombre = when (dir) {
+                      0x7E0 -> "PCM / ECM (motor)"
+                      0x7E1 -> "TCM (transmisión)"
+                      else -> "módulo no identificado"
+                  }
+                  return "0x${dir.toString(16).uppercase()} → $nombre"
+              }
+
+              private fun tipoSoftware(valor: String): String = when (valor.trim().uppercase()) {
+                  "SBL" -> "SBL (cargador secundario)"
+                  "EXE" -> "EXE (ejecutable)"
+                  "DATA" -> "DATA (datos / calibración)"
+                  else -> valor.trim()
+              }
+
+              fun leer(archivo: File): List<String> {
+                  val lineas = ArrayList<String>()
+                  val bytes = archivo.inputStream().use { entrada ->
+                      val buffer = ByteArray(16384)
+                      val n = entrada.read(buffer)
+                      if (n <= 0) ByteArray(0) else buffer.copyOf(n)
+                  }
+                  lineas.add("📄 ${archivo.name} (${archivo.length()} bytes)")
+                  val texto = String(bytes, Charsets.ISO_8859_1)
+
+                  if (texto.trimStart().startsWith("<", ignoreCase = true)) {
+                      lineas.add("❌ El archivo parece una página web (HTML), no un VBF. El enlace no dio descarga directa.")
+                      return lineas
+                  }
+
+                  val inicio = Regex("header\\s*\\{", RegexOption.IGNORE_CASE).find(texto)
+                  if (inicio == null) {
+                      lineas.add("❌ No se encontró el encabezado VBF (archivo incompleto o dañado).")
+                      return lineas
+                  }
+
+                  val abre = inicio.range.last
+                  var profundidad = 0
+                  var cierra = -1
+                  var enTexto = false
+                  for (i in abre until texto.length) {
+                      val c = texto[i]
+                      if (c == '"') enTexto = !enTexto
+                      if (enTexto) continue
+                      if (c == '{') profundidad++
+                      if (c == '}') {
+                          profundidad--
+                          if (profundidad == 0) {
+                              cierra = i
+                              break
+                          }
+                      }
+                  }
+                  if (cierra < 0) {
+                      lineas.add("❌ Encabezado VBF incompleto.")
+                      return lineas
+                  }
+
+                  val version = Regex("vbf_version\\s*=\\s*([^;]+);").find(texto)?.groupValues?.get(1)?.trim()
+                  if (version != null) lineas.add("   Versión VBF: $version")
+
+                  val bloque = texto.substring(abre + 1, cierra)
+                  val campos = LinkedHashMap<String, String>()
+                  val regexCampo = Regex("(\\w+)\\s*=\\s*([^;]*);", RegexOption.DOT_MATCHES_ALL)
+                  for (m in regexCampo.findAll(bloque)) {
+                      campos[m.groupValues[1]] = m.groupValues[2].trim()
+                  }
+
+                  campos["sw_part_number"]?.let { lineas.add("   Número de parte SW: ${it.replace("\"", "")}") }
+                  campos["sw_part_type"]?.let { lineas.add("   Tipo de software: ${tipoSoftware(it)}") }
+                  campos["ecu_address"]?.let { lineas.add("   Módulo (dirección ECU): ${moduloPorDireccion(it)}") }
+                  campos["network"]?.let { lineas.add("   Red: $it") }
+                  campos["frame_format"]?.let { lineas.add("   Formato de trama: $it") }
+                  campos["data_format_identifier"]?.let { lineas.add("   Formato de datos: $it") }
+                  campos["file_checksum"]?.let { lineas.add("   Checksum del archivo: $it") }
+
+                  campos["erase"]?.let { erase ->
+                      val pares = Regex("\\{\\s*(0x[0-9A-Fa-f]+)\\s*,\\s*(0x[0-9A-Fa-f]+)\\s*\\}").findAll(erase).toList()
+                      if (pares.isNotEmpty()) {
+                          var total = 0L
+                          for (p in pares) {
+                              total += p.groupValues[2].removePrefix("0x").toLongOrNull(16) ?: 0L
+                          }
+                          lineas.add("   Regiones de borrado: ${pares.size} (${total / 1024} KB)")
+                      }
+                  }
+
+                  val conocidos = setOf(
+                      "sw_part_number", "sw_part_type", "ecu_address", "network",
+                      "frame_format", "data_format_identifier", "file_checksum", "erase"
+                  )
+                  for ((clave, v) in campos) {
+                      if (clave !in conocidos) {
+                          val corto = v.replace(Regex("\\s+"), " ").replace("\"", "")
+                          lineas.add("   $clave: ${if (corto.length > 80) corto.take(80) + "…" else corto}")
+                      }
+                  }
+                  return lineas
+              }
+          }
+          MAZDA_EOF
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v3
+      with:
+        gradle-version: '8.4'
+
+    - name: Build Debug APK
+      run: gradle assembleDebug --no-daemon
+
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: MazdaVBFFlasher-Debug
+        path: app/build/outputs/apk/debug/*.apk
